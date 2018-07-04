@@ -1,0 +1,10 @@
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\ARToolServer.exe.config
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\ARToolServer.exe
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\ARToolServer.pdb
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csprojResolveAssemblyReference.cache
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\obj\Debug\ARToolServer.exe
+c:\users\simlabitpasi\documents\visual studio 2017\Projects\ARToolServer\ARToolServer\obj\Debug\ARToolServer.pdb
+C:\Users\SimlabitPasi\Documents\Visual Studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\Npgsql.dll
+C:\Users\SimlabitPasi\Documents\Visual Studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\System.Threading.Tasks.Extensions.dll
+C:\Users\SimlabitPasi\Documents\Visual Studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\Npgsql.xml
+C:\Users\SimlabitPasi\Documents\Visual Studio 2017\Projects\ARToolServer\ARToolServer\bin\Debug\System.Threading.Tasks.Extensions.xml
