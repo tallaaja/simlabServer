@@ -26,6 +26,18 @@ namespace ARToolServer
             return lists;
         }
 
+        string[][] listsToArray(List<string>[] lists)
+        {
+            string[][] res = new string[lists.Length][];
+            for(int i = 0; i < lists.Length; i++)
+            {
+                res[i] = lists[i].ToArray();
+            }
+            return res;
+        }
+
+
+
         void start(string name, string password)
         {
             
@@ -58,7 +70,7 @@ namespace ARToolServer
 
         //returns 3 lists of strings 
         //first contining the names, second  description and last one contains the IDs
-        public List<string>[] getListOfContentPackagesCreatedBy(string creatorName)
+        public string[][] getListOfContentPackagesCreatedBy(string creatorName)
         {
             using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
             {
@@ -81,7 +93,7 @@ namespace ARToolServer
                             results[2].Add(reader.GetString(2));
                             Console.WriteLine("read content pack: " + reader.GetString(0));
                         }
-                        return results;
+                        return listsToArray(results);
                     }
                 }
                 return null;
@@ -91,7 +103,7 @@ namespace ARToolServer
 
         //returns 3 lists of strings 
         //first contining the names, second  description and last one contains the IDs
-        public List<string>[] getListOfVideoSeriesInPackage(string packageID)
+        public string[][] getListOfVideoSeriesInPackage(string packageID)
         {
             
 
@@ -116,7 +128,7 @@ namespace ARToolServer
                             results[2].Add(reader.GetString(2));
                             Console.WriteLine("read series in pack: " + reader.GetString(0));
                         }
-                        return results;
+                        return listsToArray(results);
                     }
                 }
                 return null;
@@ -125,7 +137,7 @@ namespace ARToolServer
 
             //returns 2 lists of strings 
             //first contining the ids, second the list of lesson names
-        public List<string>[] getVideoIDs_andNamesInSerie(string packageID)
+        public string[][] getVideoIDs_andNamesInSerie(string packageID)
         {
             using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
             {
@@ -147,13 +159,45 @@ namespace ARToolServer
                             results[1].Add(reader.GetString(1));
                             Console.WriteLine("read video pack: " + reader.GetString(1));
                         }
-                        return results;
+
+                        return listsToArray(results);
+
                     }
                 }
             }
             return null;
         }
 
+
+        //main vid in [0], left video in [1] right video in [2]
+        public byte[][] getVideoData(string videoID)
+        {
+            using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
+            {
+                using (NpgsqlCommand cmd = new NpgsqlCommand(
+                    "SELECT " +
+                      "public.\"360video\".data, " +
+                      "public.\"360video\".sidevideo1, " +
+                      "public.\"360video\".sidevideo2, " +
+                    "FROM " +
+                       "public.\"360video\" " +
+                    "WHERE public.\"360video\".id = " + videoID + ";", conn))
+                {
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+
+                            Console.WriteLine("read video data for : " + videoID);
+                            return new byte[][] { (byte[])reader[0], (byte[])reader[1], (byte[])reader[2] };
+                        }
+                        return null;
+
+                    }
+                }
+            }
+            return null;
+        }
 
 
         bool registerUser(string userName, string password, string organization)
@@ -183,18 +227,22 @@ namespace ARToolServer
 
 
         //returns the id of the inserted video or 0 on failure, -1 on error
-        int insertVideo(int ownerID, string video_fileName, string lessonName, string )
+        //TODO!!
+        //TODO!!!
+        int insertVideo(int ownerID, string video_fileName, string lessonName, string packageName)
         {
-            NpgsqlCommand command = new NpgsqlCommand("select * from tablea where column1 = :column1", conn);
-            // Now add the parameter to the parameter collection of the command specifying its type.
-            command.Parameters.Add(new NpgsqlParameter("column1", NpgsqlDbType.Integer));
-            // Now, prepare the statement.
-            command.Prepare();
-            // Now, add a value to it and later execute the command as usual.
-            command.Parameters[0].Value = 4;
+            using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
+            {
+                NpgsqlCommand command = new NpgsqlCommand("select * from tablea where column1 = :column1", conn);
+                // Now add the parameter to the parameter collection of the command specifying its type.
+                command.Parameters.Add(new NpgsqlParameter("column1", NpgsqlDbType.Integer));
+                // Now, prepare the statement.
+                command.Prepare();
+                // Now, add a value to it and later execute the command as usual.
+                command.Parameters[0].Value = 4;
 
 
-
+            }
             return 0;
 
         }
