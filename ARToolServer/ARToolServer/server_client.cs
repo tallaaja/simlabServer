@@ -24,18 +24,21 @@ namespace ARToolServer
         string storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=simlabitvideos;AccountKey=yWWkrOc52O+krVXnikLhy8at9cXX3LKWEBeBD4jHmImY2hYzNcCyWsaEAaEvk4XnYnkMl+mH1U6Z2kN3RJHkEw==;EndpointSuffix=core.windows.net";
 
         public TcpClient clientSocket;
+        public TcpClient pingSocket;
         public string clientName; //ip
         public STATUS status = STATUS.RUNNING;
         public int returnCode = 0; //set error code here
         public int requestCount = 0;
+        private Server server;
 
         databaseConnection db;
 
         int requestMaxSize;
 
         private Client() { } //hide default constructor
-        public Client(int requestMaxSize)
+        public Client(int requestMaxSize, Server myServer)
         {
+            server = myServer;
             this.requestMaxSize = requestMaxSize;
         }
 
@@ -47,19 +50,22 @@ namespace ARToolServer
 
         public string rCount = null;
         NetworkStream stream;
+        NetworkStream pingStream;
         public MemoryStream message = new MemoryStream();
 
         //userinfo
         string username = ""; //logged in username
 
 
-        public void startClient(TcpClient inClientSocket, string clineNo)
+        public void startClient(TcpClient inClientSocket, TcpClient pingSocket, string clineNo)
         {
             this.clientSocket = inClientSocket;
+            this.pingSocket = pingSocket;
             this.clientName = clineNo;
             Thread ctThread = new Thread(serveClient);
             ctThread.Start();
             stream = clientSocket.GetStream();
+            pingStream = pingSocket.GetStream();
         }
 
 
@@ -141,6 +147,38 @@ namespace ARToolServer
             return false;
         }
 
+        public bool sendping()
+        {
+
+            if (pingSocket == null)
+            {
+
+                return false;
+            }
+            try
+            {
+                // Get a stream object for writing. 			
+                if (pingStream.CanWrite)
+                {
+                    byte[] message = BitConverter.GetBytes((int)PROTOCOL_CODES.KEEPALIVE_SIGNAL);
+                    pingStream.Write(message, 0, 4); 
+                    Console.WriteLine("Sent protocol code:" + (PROTOCOL_CODES.KEEPALIVE_SIGNAL).ToString());
+                    return true;
+                }
+                returnCode = -1;
+                status = STATUS.ERROR;
+                return false;
+            }
+            catch (Exception socketException)
+            {
+                Console.WriteLine("Socket exception: " + socketException);
+                returnCode = -1;
+                status = STATUS.ERROR;
+                return false;
+            }
+            
+        }
+
         private void serveClient()
         {
             while ((true))
@@ -149,15 +187,27 @@ namespace ARToolServer
                 {
                     while (true)
                     {
+                        
                         PROTOCOL_CODES code = getRequest();
                         requestCount = requestCount + 1;
+
+                        if(code == PROTOCOL_CODES.ERROR)
+                        {
+                            server.removeClient(clientName);
+                            Console.WriteLine(clientName + " encountered error!");
+                            return;
+                        }
                         int requestResult = handleRequest(code);
                         if (requestResult == 0)
                         { //client wanted to quit
+                            server.removeClient(clientName);
+                            Console.WriteLine(clientName + " has quit!");
                             return;
-                        }
-                        if (requestResult == -1 && status == STATUS.ERROR)
-                        {//error in handling request that wasent trivial
+                        } //requestResult == -1 && 
+                        if (status == STATUS.ERROR)
+                        {//error in handling request that wasnt trivial
+                            server.removeClient(clientName);
+                            Console.WriteLine(clientName + " has crashed!");
                             return;
                         }
 
@@ -179,19 +229,29 @@ namespace ARToolServer
 
         byte[] receiveBytes(int lenght)
         {
-            byte[] bytes = new byte[lenght];
-            int received;
-            int receivedSofar = 0;
-            while (receivedSofar < lenght && (received = stream.Read(bytesFrom, 0, bytesFrom.Length)) > 0)
+            try
             {
-                Array.Copy(bytesFrom, 0, bytes, receivedSofar, received);
-                receivedSofar += received;
-                // Convert byte array to string message. 							
-                string clientMessage = Encoding.ASCII.GetString(bytesFrom, 0, received);
-                Console.WriteLine("received: " + received + " bytes");
+                byte[] bytes = new byte[lenght];
+                int received;
+                int receivedSofar = 0;
+                while (receivedSofar < lenght && (received = stream.Read(bytesFrom, 0, bytesFrom.Length)) > 0)
+                {
+                    Array.Copy(bytesFrom, 0, bytes, receivedSofar, received);
+                    receivedSofar += received;
+                    // Convert byte array to string message. 							
+                    string clientMessage = Encoding.ASCII.GetString(bytesFrom, 0, received);
+                    Console.WriteLine("received: " + received + " bytes");
+                }
+                Console.WriteLine("received full : " + receivedSofar + " bytes");
+                return bytes;
             }
-            Console.WriteLine("received full : " + receivedSofar + " bytes");
-            return bytes;
+            catch (Exception socketException)
+            {
+                Console.WriteLine("Socket exception: " + socketException);
+                returnCode = -1;
+                status = STATUS.ERROR;
+                return null;
+            }
         }
 
         int handleSendimage()
@@ -327,8 +387,8 @@ namespace ARToolServer
                     }
                     return 1;
                 case PROTOCOL_CODES.QUIT:
+                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
                     return 0;
-
 
                 default:
                     sendProtocolCode(PROTOCOL_CODES.ERROR);
@@ -351,7 +411,7 @@ namespace ARToolServer
                 Console.WriteLine("Received request: " + ((PROTOCOL_CODES)request).ToString());
                 return (PROTOCOL_CODES)request;
             }
-            catch (SocketException socketException)
+            catch (Exception socketException)
             {
                 Console.WriteLine("Socket exception: " + socketException);
                 returnCode = -1;
@@ -381,7 +441,7 @@ namespace ARToolServer
                 status = STATUS.ERROR;
                 return false;
             }
-            catch (SocketException socketException)
+            catch (Exception socketException)
             {
                 Console.WriteLine("Socket exception: " + socketException);
                 returnCode = -1;
@@ -409,7 +469,7 @@ namespace ARToolServer
                     return (PROTOCOL_CODES)reply;
                 }
             }
-            catch (SocketException socketException)
+            catch (Exception socketException)
             {
                 Console.WriteLine("Socket exception: " + socketException);
                 status = STATUS.ERROR;
@@ -449,8 +509,9 @@ namespace ARToolServer
                     Console.WriteLine("Client sent his message - should be received by server");
                 }
             }
-            catch (SocketException socketException)
+            catch (Exception socketException)
             {
+                status = STATUS.ERROR;
                 Console.WriteLine("Socket exception: " + socketException);
             }
         }
