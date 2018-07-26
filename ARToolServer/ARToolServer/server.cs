@@ -37,6 +37,7 @@ public enum REQUEST_RESULT
 
 public class Server
 {
+    ConcurrentBag<int> cb = new ConcurrentBag<int>();
     List<Client> clients = new List<Client>();
     TcpListener serverSocket;
     TcpListener serverPingSocket;
