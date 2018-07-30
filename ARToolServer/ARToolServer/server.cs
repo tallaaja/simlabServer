@@ -10,6 +10,7 @@ using System.IO;
 using System.Drawing.Imaging;
 using ARToolServer;
 using System.Runtime.Serialization.Formatters.Binary;
+using System.Collections.Concurrent;
 
 public enum PROTOCOL_CODES
 {
