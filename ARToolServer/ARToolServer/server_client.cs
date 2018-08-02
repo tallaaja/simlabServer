@@ -576,8 +576,8 @@ namespace ARToolServer
                 //
                 //
                 // upload files
-                // CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename); TÄMÄ KOODI KUTSUTAAN UNITY APPLIKAATIOSTA
-                // cloudBlockBlob.UploadFromByteArray(bytesFrom, 0, 4);
+                //CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);//TÄMÄ KOODI KUTSUTAAN UNITY APPLIKAATIOSTA
+                //cloudBlockBlob.UploadFromByteArray(bytesFrom, 0, 4);
                 //
                 //
 
