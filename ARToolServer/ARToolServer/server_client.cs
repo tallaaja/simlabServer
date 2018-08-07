@@ -150,6 +150,7 @@ namespace ARToolServer
         public bool sendping()
         {
 
+            Console.WriteLine(generateSASkeytoWatch("robert", "boatphoto"));
             if (pingSocket == null)
             {
 
@@ -593,7 +594,7 @@ namespace ARToolServer
 
 
 
-        private string generateSASkeytoWatch(string uploader, string filename)
+        public string generateSASkeytoWatch(string uploader, string filename)
         {
             CloudStorageAccount storageAccount;
             CloudBlobContainer cloudBlobContainer;
@@ -609,7 +610,7 @@ namespace ARToolServer
                 // Create a container and append a GUID value to it to make the name unique. 
                 cloudBlobContainer = cloudBlobClient.GetContainerReference(uploader.ToLower());
 
-                cloudBlobContainer.CreateIfNotExists();
+                //cloudBlobContainer.CreateIfNotExists();
 
                 // Set the permissions so the blobs are public. 
                 BlobContainerPermissions permissions = new BlobContainerPermissions
@@ -617,16 +618,27 @@ namespace ARToolServer
                     PublicAccess = BlobContainerPublicAccessType.Container
                 };
 
-
+                var storedPolicy = new SharedAccessBlobPolicy()
+                {
+                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
+                    SharedAccessStartTime = DateTime.UtcNow.AddMinutes(-1),
+                    Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.List
+                };
                 var accessPolicy = new SharedAccessBlobPolicy()
                 {
                     Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.List
                 };
+
+                // add in the new one
+                permissions.SharedAccessPolicies.Add(policyName, storedPolicy);
+                permissions.SharedAccessPolicies.Add(policyName + "access", accessPolicy);
                 // upload files
                 CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
 
                 // Now we are ready to create a shared access signature based on the stored access policy
-                return cloudBlobContainer.GetSharedAccessSignature(accessPolicy, policyName + "access", null, new IPAddressOrRange(clientName));
+                string saskey =  cloudBlobContainer.GetSharedAccessSignature(accessPolicy, policyName + "access");
+                Console.WriteLine("url: " + cloudBlockBlob.Uri.AbsoluteUri);
+                Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
             }
             return "";
         }

@@ -11,6 +11,8 @@ using System.Drawing.Imaging;
 using ARToolServer;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Collections.Concurrent;
+using Microsoft.WindowsAzure.Storage;
+using Microsoft.WindowsAzure.Storage.Blob;
 
 public enum PROTOCOL_CODES
 {
@@ -145,4 +147,5 @@ public class Server
         Console.ReadLine();
         server.stop();
     }
+
 }
