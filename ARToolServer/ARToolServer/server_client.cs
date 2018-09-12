@@ -12,8 +12,8 @@ using ARToolServer;
 using System.Runtime.Serialization.Formatters.Binary;
 using Microsoft.WindowsAzure.Storage;
 using Microsoft.WindowsAzure.Storage.Blob;
-
-
+using Microsoft.WindowsAzure.Storage.Auth;
+using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 
 namespace ARToolServer
 {
@@ -35,6 +35,9 @@ namespace ARToolServer
 
         int requestMaxSize;
 
+        
+
+
         private Client() { } //hide default constructor
         public Client(int requestMaxSize, Server myServer)
         {
@@ -50,22 +53,32 @@ namespace ARToolServer
 
         public string rCount = null;
         NetworkStream stream;
+        BinaryReader reader;
+        BinaryWriter writer;
+
+
         NetworkStream pingStream;
-        public MemoryStream message = new MemoryStream();
+
+        public MemoryStream memStream = new MemoryStream();
 
         //userinfo
         string username = ""; //logged in username
 
 
-        public void startClient(TcpClient inClientSocket, TcpClient pingSocket, string clineNo)
+        public void StartClient(TcpClient inClientSocket, TcpClient pingSocket, string clineNo)
         {
+            
             this.clientSocket = inClientSocket;
             this.pingSocket = pingSocket;
             this.clientName = clineNo;
-            Thread ctThread = new Thread(serveClient);
+            Thread ctThread = new Thread(ServeClient);
             ctThread.Start();
             stream = clientSocket.GetStream();
             pingStream = pingSocket.GetStream();
+
+            reader = new BinaryReader(stream);
+            writer = new BinaryWriter(stream);           
+
         }
 
 
@@ -73,7 +86,7 @@ namespace ARToolServer
         string[][] lastFetchedVideos;
         string[][] lastFetchedDBresult;
 
-        public bool login()
+        public bool Login()
         {
             int passwordRetrys = 1000;
 
@@ -111,35 +124,35 @@ namespace ARToolServer
         }
 
 
-        public bool fetchContentPacksByUser(string userName)
+        public bool FetchContentPacksByUser(string userName)
         {
             lastFetchedDBresult = db.getListOfContentPackagesCreatedBy(userName);
             if (lastFetchedDBresult != null)
             {
-                sendListString(lastFetchedVideos);//send the video list to user
+                SendArrayArrayString(lastFetchedVideos);//send the video list to user
                 return true;
             }
             return false;
         }
 
-        public bool fetchVideoSeriesInPackage(string contentPackID)
+        public bool FetchVideoSeriesInPackage(string contentPackID)
         {
             lastFetchedDBresult = db.getListOfVideoSeriesInPackage(contentPackID);
             if (lastFetchedDBresult != null)
             {
-                sendListString(lastFetchedVideos);//send the video list to user
+                SendArrayArrayString(lastFetchedVideos);//send the video list to user
                 return true;
             }
 
             return false;
         }
-        public bool fetchVideoNamesAndDataInSerie(string seriesID)
+        public bool FetchVideoNamesAndDataInSerie(string seriesID)
         {
             lastFetchedVideos = db.getVideoIDs_andNamesInSerie(seriesID);
 
             if (lastFetchedVideos != null)
             {
-                sendListString(lastFetchedVideos);//send the video list to user
+                SendArrayArrayString(lastFetchedVideos);//send the video list to user
 
                 return true;
             }
@@ -147,10 +160,10 @@ namespace ARToolServer
             return false;
         }
 
-        public bool sendping()
+        public bool Sendping()
         {
 
-            Console.WriteLine(generateSASkeytoWatch("robert", "boatphoto"));
+            //Console.WriteLine(generateSASkeytoWatch("robert", "boatphoto"));
             if (pingSocket == null)
             {
 
@@ -180,7 +193,7 @@ namespace ARToolServer
             
         }
 
-        private void serveClient()
+        private void ServeClient()
         {
             while ((true))
             {
@@ -189,7 +202,7 @@ namespace ARToolServer
                     while (true)
                     {
                         
-                        PROTOCOL_CODES code = getRequest();
+                        PROTOCOL_CODES code = receiveProtocolCode();
                         requestCount = requestCount + 1;
 
                         if(code == PROTOCOL_CODES.ERROR)
@@ -198,7 +211,7 @@ namespace ARToolServer
                             Console.WriteLine(clientName + " encountered error!");
                             return;
                         }
-                        int requestResult = handleRequest(code);
+                        int requestResult = HandleRequest(code);
                         if (requestResult == 0)
                         { //client wanted to quit
                             server.removeClient(clientName);
@@ -228,103 +241,109 @@ namespace ARToolServer
 
         }
 
-        byte[] receiveBytes(int lenght)
-        {
-            try
-            {
-                byte[] bytes = new byte[lenght];
-                int received;
-                int receivedSofar = 0;
-                while (receivedSofar < lenght && (received = stream.Read(bytesFrom, 0, bytesFrom.Length)) > 0)
-                {
-                    Array.Copy(bytesFrom, 0, bytes, receivedSofar, received);
-                    receivedSofar += received;
-                    // Convert byte array to string message. 							
-                    string clientMessage = Encoding.ASCII.GetString(bytesFrom, 0, received);
-                    Console.WriteLine("received: " + received + " bytes");
-                }
-                Console.WriteLine("received full : " + receivedSofar + " bytes");
-                return bytes;
-            }
-            catch (Exception socketException)
-            {
-                Console.WriteLine("Socket exception: " + socketException);
-                returnCode = -1;
-                status = STATUS.ERROR;
-                return null;
-            }
-        }
-
-        int handleSendimage()
+        int HandleSendimage()
         {
             Int32 bytesToCome;
-            Console.WriteLine("replying with: ok");
-            sendProtocolCode(PROTOCOL_CODES.ACCEPT);
+            //Console.WriteLine("replying with: ok");
+            SendProtocolCode(PROTOCOL_CODES.ACCEPT);
 
 
-            Console.WriteLine("awaiting reply");
-            stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
-            bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
+            //Console.WriteLine("awaiting reply");
+             //read how many bytes are incoming
+            bytesToCome = reader.ReadInt32();
             Console.WriteLine("got reply");
             if (bytesToCome < requestMaxSize)
             {
-                sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                Byte[] received = receiveBytes(bytesToCome);
+                SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                Byte[] received = ReceiveBytes(bytesToCome);
             }
             else
             {
-                sendProtocolCode(PROTOCOL_CODES.DENY);
+                SendProtocolCode(PROTOCOL_CODES.DENY);
             }
             return 1;
 
         }
 
+        int UploadAssetPackage()
+        {
+            SendProtocolCode(PROTOCOL_CODES.ACCEPT); //TODO add logic to check if the upload file is too large
+            string fileName = ReceiveMessage();
+
+            SendMessage(generateSASkeytoUpload(username, fileName));
+            PROTOCOL_CODES reply = receiveProtocolCode();
+
+
+            if (reply == PROTOCOL_CODES.OK) 
+            {
+                if (db.UploadAssetPackage(username, fileName))
+                {
+                    SendProtocolCode(PROTOCOL_CODES.OK);
+                    return 1; // all went fine
+                }
+                else
+                { //something went wrong with adding data to the database
+                    SendProtocolCode(PROTOCOL_CODES.ERROR_NO_DBCONNECTION);
+                    return -1;
+                }
+            }
+            else if (reply == PROTOCOL_CODES.ERROR)
+            {//something is wrong with the sas link or upload.. 
+
+            }
+            return -1;
+        }
+
 
         //0 is quit -1 error 1 is ok
-        int handleRequest(PROTOCOL_CODES request)
+        int HandleRequest(PROTOCOL_CODES request)
         {
             Int32 bytesToCome;
             switch (request)
             {
+
+                case PROTOCOL_CODES.UPLOAD_ASSETPACKAGE:
+                    return UploadAssetPackage();
+
                 case PROTOCOL_CODES.SENDIMAGE:
-                    return handleSendimage();
+                    return HandleSendimage();
                 //loput samalla tavalla
 
                 case PROTOCOL_CODES.GET_MY_CONTENTPACKS:
-                    if (fetchContentPacksByUser(username)) return 1;
+                    if (FetchContentPacksByUser(username)) return 1;
                     return -1;
 
                 case PROTOCOL_CODES.GET_SERIES_IN_PACKAGE:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
-                    bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    //read how many bytes are incoming
+                    bytesToCome = reader.ReadInt32();
                     if (bytesToCome < requestMaxSize)
                     {
-                        sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                        Byte[] received = receiveBytes(bytesToCome);
-                        if (fetchVideoSeriesInPackage(Encoding.UTF8.GetString(received))) return 1;
+                        SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                        Byte[] received = ReceiveBytes(bytesToCome);
+                        if (FetchVideoSeriesInPackage(Encoding.UTF8.GetString(received))) return 1;
                         return -1;
                     }
                     else
                     {
-                        sendProtocolCode(PROTOCOL_CODES.DENY);
+                        SendProtocolCode(PROTOCOL_CODES.DENY);
                         return 1;
                     }
 
                 case PROTOCOL_CODES.GET_VIDEOS_IN_SERIES:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
-                    bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                   //read how many bytes are incoming
+                    bytesToCome = reader.ReadInt32();
                     if (bytesToCome < requestMaxSize)
                     {
-                        sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                        Byte[] received = receiveBytes(bytesToCome);
-                        if (fetchVideoSeriesInPackage(Encoding.UTF8.GetString(received))) return 1;
+                        SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                        Byte[] received = ReceiveBytes(bytesToCome);
+                        if (FetchVideoSeriesInPackage(Encoding.UTF8.GetString(received))) return 1;
                         return -1;
                     }
                     else
                     {
-                        sendProtocolCode(PROTOCOL_CODES.DENY);
+                        SendProtocolCode(PROTOCOL_CODES.DENY);
                         return 1;
                     }
 
@@ -334,10 +353,10 @@ namespace ARToolServer
                  * 
                  **/
                 case PROTOCOL_CODES.UPLOAD_VIDEO:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming (size of videos name)
-                    bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
-                    string filename = Encoding.UTF8.GetString(receiveBytes(bytesToCome));
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                   //read how many bytes are incoming (size of videos name)
+                    bytesToCome = reader.ReadInt32();
+                    string filename = Encoding.UTF8.GetString(ReceiveBytes(bytesToCome));
 
                     //TODO logic to check if user would go over his upload limit
 
@@ -354,52 +373,86 @@ namespace ARToolServer
 
 
                     return -1;
+                case PROTOCOL_CODES.POST_EDITS:
+
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "boatphoto")));
+
+                    return 1;
 
 
                 case PROTOCOL_CODES.REQUEST_VIEW_VIDEO:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    stream.Read(bytesFrom, 0, 4);
-                    string videoID = Encoding.UTF8.GetString(bytesFrom); //user sends the ID of the video he wants to view
-                    /*
-                    byte[] videoData = db.getVideoData(videoID); //we get the data that is needed to generate the SAS key that lets user view it
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    
+                    string videoID = ReceiveMessage(); //user sends the ID of the video he wants to view
+                    
+                    byte[][] videoData = db.getVideoData(videoID); //we get the data that is needed to generate the SAS key that lets user view it
 
-                    if (videoData != null)
+                    string[] reply;
+                    if (videoData[0].Length == 0)
                     {
-                        sendBytes(generateSASkeytoWatch(, file))
+                        SendListString(null);
+                        return 1; //if the video is not found in the database return 0 its fiiine...
                     }
-                    */
-                    return -1;
+                    
 
+                    string uploader = System.Text.Encoding.UTF8.GetString(videoData[0]);
+                    string sideVideoLeft = System.Text.Encoding.UTF8.GetString(videoData[1]);
+                    string sideVideoRight = System.Text.Encoding.UTF8.GetString(videoData[2]);
 
-                case PROTOCOL_CODES.SENDJSON:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    Console.WriteLine("awaiting reply");
-                    stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
-                    bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
-                    Console.WriteLine("got reply");
-                    if (bytesToCome < requestMaxSize)
-                    {
-                        sendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                        Byte[] received = receiveBytes(bytesToCome);
+                    
+                    if (sideVideoLeft.Length > 0 || sideVideoRight.Length > 0)
+                    {//if either of the side videos exist the lenght of the reply array is 3 
+                        reply = new string[3];                   
                     }
                     else
                     {
-                        sendProtocolCode(PROTOCOL_CODES.DENY);
+                        reply = new string[1];
+                    }
+
+                    reply[0] = generateSASkeytoWatch(uploader, videoID);
+
+                    if (sideVideoLeft.Length > 0)
+                    {
+                        reply[1] = generateSASkeytoWatch(uploader,sideVideoLeft);
+                    }
+                    if (sideVideoRight.Length > 0)
+                    {
+                        reply[2] = generateSASkeytoWatch(uploader, sideVideoRight); 
+                    }
+
+                    SendListString(reply);
+                    return 0;
+                    
+                case PROTOCOL_CODES.SENDJSON:
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                     //read how many bytes are incoming
+                    bytesToCome = reader.ReadInt32();
+                    Console.WriteLine("got reply");
+                    if (bytesToCome < requestMaxSize)
+                    {
+                        SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                        Byte[] received = ReceiveBytes(bytesToCome);
+                        Console.WriteLine(System.Text.Encoding.UTF8.GetString(received));
+                    }
+                    else
+                    {
+                        SendProtocolCode(PROTOCOL_CODES.DENY);
                     }
                     return 1;
                 case PROTOCOL_CODES.QUIT:
-                    sendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
                     return 0;
 
                 default:
-                    sendProtocolCode(PROTOCOL_CODES.ERROR);
+                    SendProtocolCode(PROTOCOL_CODES.ERROR);
                     Console.WriteLine("Cannot handle request: " + ((PROTOCOL_CODES)request).ToString());
                     return -1;
             }
 
         }
 
-        PROTOCOL_CODES getRequest()
+        PROTOCOL_CODES receiveProtocolCode()
         {
             if (clientSocket == null)
             {
@@ -407,8 +460,8 @@ namespace ARToolServer
             }
             try
             {
-                stream.Read(bytesFrom, 0, 4); //read the replycode
-                Int32 request = BitConverter.ToInt32(bytesFrom, 0);
+                //read the replycode
+                Int32 request = reader.ReadInt32(); ;
                 Console.WriteLine("Received request: " + ((PROTOCOL_CODES)request).ToString());
                 return (PROTOCOL_CODES)request;
             }
@@ -421,7 +474,7 @@ namespace ARToolServer
             }
         }
 
-        bool sendProtocolCode(PROTOCOL_CODES code)
+        bool SendProtocolCode(PROTOCOL_CODES code)
         {
             if (clientSocket == null)
             {
@@ -431,13 +484,13 @@ namespace ARToolServer
             try
             {
                 // Get a stream object for writing. 			
-                if (stream.CanWrite)
-                {
-                    byte[] message = BitConverter.GetBytes((int)code);
-                    stream.Write(message, 0, 4); //read the replycode
-                    Console.WriteLine("Sent protocol code:" + ((PROTOCOL_CODES)code).ToString());
-                    return true;
-                }
+
+                writer.Write((Int32)code);
+                writer.Flush();
+                Console.WriteLine("Sent protocol code:" + ((PROTOCOL_CODES)code).ToString());
+                
+                return true;
+
                 returnCode = -1;
                 status = STATUS.ERROR;
                 return false;
@@ -451,7 +504,7 @@ namespace ARToolServer
             }
         }
 
-        PROTOCOL_CODES sendRequest(PROTOCOL_CODES code)
+        PROTOCOL_CODES SendRequest(PROTOCOL_CODES code)
         {
             if (clientSocket == null)
             {
@@ -460,15 +513,12 @@ namespace ARToolServer
             try
             {
                 // Get a stream object for writing. 			
-                if (stream.CanWrite)
-                {
-                    byte[] message = BitConverter.GetBytes((int)code);
-                    stream.Write(message, 0, 4);
-                    stream.Read(bytesFrom, 0, 4); //read the replycode
-                    Int32 reply = BitConverter.ToInt32(bytesFrom, 0);
-                    Console.WriteLine("Client sent request. Received reply:" + ((PROTOCOL_CODES)reply).ToString());
-                    return (PROTOCOL_CODES)reply;
-                }
+                writer.Write((Int32)code);
+                writer.Flush();
+                //read the replycode
+                Int32 reply = reader.ReadInt32(); ;
+                Console.WriteLine("Client sent request. Received reply:" + ((PROTOCOL_CODES)reply).ToString());
+                return (PROTOCOL_CODES)reply;
             }
             catch (Exception socketException)
             {
@@ -479,6 +529,23 @@ namespace ARToolServer
             return PROTOCOL_CODES.ERROR;
         }
 
+        byte[] ReceiveBytes(int lenght)
+        {
+            try
+            {
+
+                byte[] bytes = reader.ReadBytes(lenght);
+                Console.WriteLine("received full : " + bytes.Length + " bytes");
+                return bytes;
+            }
+            catch (Exception socketException)
+            {
+                Console.WriteLine("Socket exception: " + socketException);
+                returnCode = -1;
+                status = STATUS.ERROR;
+                return null;
+            }
+        }
 
         public void SendBytes(Byte[] clientMessageAsByteArray)
         {
@@ -487,28 +554,26 @@ namespace ARToolServer
                 return;
             }
             try
-            {
-                // Get a stream object for writing. 			
-                if (stream.CanWrite)
-                {
-                    byte[] header = BitConverter.GetBytes(clientMessageAsByteArray.Length);
-                    stream.Write(header, 0, header.Length); //send the size of array
-                    stream.Flush();
+            { 
 
-                    stream.Read(bytesFrom, 0, 4); //read the replycode
-                    Int32 reply = BitConverter.ToInt32(bytesFrom, 0);
-                    if (reply == (int)PROTOCOL_CODES.ACCEPT)
-                    {
-                        stream.Write(clientMessageAsByteArray, 0, clientMessageAsByteArray.Length);
-                        stream.Flush();
-                    }
-                    else
-                    {
-                        Console.WriteLine("Server denied request to send something so large!");
-                        //TODO : handle not acccepting
-                    }
-                    Console.WriteLine("Client sent his message - should be received by server");
+                Console.WriteLine("viestin pituus" + clientMessageAsByteArray.Length);
+                writer.Write(clientMessageAsByteArray.Length); //send the size of array
+                writer.Flush();
+
+                //read the replycode
+                Int32 reply = reader.ReadInt32();
+                if (reply == (int)PROTOCOL_CODES.ACCEPT)
+                {
+                    writer.Write(clientMessageAsByteArray);
+                    writer.Flush();
                 }
+                else
+                {
+                    Console.WriteLine("Server denied request to send something so large!");
+                    //TODO : handle not acccepting
+                }
+                //Console.WriteLine("Client sent his message - should be received by server");
+
             }
             catch (Exception socketException)
             {
@@ -517,17 +582,65 @@ namespace ARToolServer
             }
         }
 
-        public void sendListString(string[][] obj)
+        public void SendMessage(string msg)
         {
-            int len = obj.Length;
-            byte[] bytes = new byte[len];
+            if (SendProtocolCode(PROTOCOL_CODES.SENDJSON))
+            {
+                SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                Console.WriteLine(msg);
+                Console.WriteLine("len of message: " + Encoding.UTF8.GetBytes(msg).Length);
+                SendBytes(Encoding.UTF8.GetBytes(msg));
 
+
+
+              //  stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
+              //  int bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
+                
+            }
+            else return;
+
+            /*byte[] buffer = System.Text.Encoding.UTF8.GetBytes(msg);
+            SendBytes(buffer);*/
+        }
+
+        public string ReceiveMessage()
+        {
+            //if (GetRequest() == PROTOCOL_CODES.SENDJSON) 
+//
+            //    SendBytes(Encoding.UTF8.GetBytes(msg));
+           // else return;
+
+
+            //read how many bytes are incoming
+            int bytesToCome = reader.ReadInt32();
+
+
+            return System.Text.Encoding.UTF8.GetString(ReceiveBytes(bytesToCome));
+        }
+
+        public void SendListString(string[] obj)
+        {
+            BinaryFormatter bf = new BinaryFormatter();
+            bf.Serialize(stream, obj);
+            stream.Flush();
+        }
+        public string[] ReceiveListString()
+        {
+            BinaryFormatter bf = new BinaryFormatter();
+            return (string[])bf.Deserialize(stream);
+        }
+
+
+        public void SendArrayArrayString(string[][] obj)
+        {
             BinaryFormatter bf = new BinaryFormatter();
             bf.Serialize(stream, obj);
             stream.Flush();
         }
 
-        public string[][] receiveListString()
+        
+
+        public string[][] ReceiveArrayArrayString()
         {
             BinaryFormatter bf = new BinaryFormatter();
             return (string[][])bf.Deserialize(stream);
@@ -593,6 +706,60 @@ namespace ARToolServer
         }
 
 
+        public string generateSASkeytoUpload(string uploader, string filename)
+        {
+            CloudStorageAccount storageAccount;
+            CloudBlobContainer cloudBlobContainer;
+
+            // Check whether the connection string can be parsed.
+            if (CloudStorageAccount.TryParse(storageConnectionString, out storageAccount))
+            {
+                // If the connection string is valid, proceed with operations against Blob storage here.
+
+                // Create the CloudBlobClient that represents the Blob storage endpoint for the storage account.
+                CloudBlobClient cloudBlobClient = storageAccount.CreateCloudBlobClient();
+
+                // Create a container and append a GUID value to it to make the name unique. 
+                cloudBlobContainer = cloudBlobClient.GetContainerReference(uploader.ToLower());
+                cloudBlobContainer.CreateIfNotExists();
+                
+
+
+                // Set the permissions so the blobs are public. 
+                BlobContainerPermissions permissions = new BlobContainerPermissions
+                {
+                    PublicAccess = BlobContainerPublicAccessType.Container
+                };
+
+                var storedPolicy = new SharedAccessBlobPolicy()
+                {
+                    SharedAccessStartTime = DateTime.UtcNow.AddMinutes(-1),
+                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(10),
+                    Permissions = SharedAccessBlobPermissions.Read |
+                      SharedAccessBlobPermissions.Write |
+                      SharedAccessBlobPermissions.List
+                };
+                var accessPolicy = new SharedAccessBlobPolicy()
+                {
+                    Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.List
+                };
+
+                // add in the new one
+                permissions.SharedAccessPolicies.Add(policyName, storedPolicy);
+                permissions.SharedAccessPolicies.Add(policyName + "access", accessPolicy);
+                // save back to the container
+                cloudBlobContainer.SetPermissions(permissions);
+
+                CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference("filename");
+
+
+                string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName);
+                Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
+                return saskey;
+
+            }
+            return "";
+        }
 
         public string generateSASkeytoWatch(string uploader, string filename)
         {
@@ -609,8 +776,14 @@ namespace ARToolServer
 
                 // Create a container and append a GUID value to it to make the name unique. 
                 cloudBlobContainer = cloudBlobClient.GetContainerReference(uploader.ToLower());
-
                 //cloudBlobContainer.CreateIfNotExists();
+
+                foreach (var blob in cloudBlobContainer.ListBlobs())
+                {
+                    Console.WriteLine(blob.Uri);
+                }
+
+
 
                 // Set the permissions so the blobs are public. 
                 BlobContainerPermissions permissions = new BlobContainerPermissions
@@ -620,9 +793,11 @@ namespace ARToolServer
 
                 var storedPolicy = new SharedAccessBlobPolicy()
                 {
-                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(24),
                     SharedAccessStartTime = DateTime.UtcNow.AddMinutes(-1),
-                    Permissions = SharedAccessBlobPermissions.Read | SharedAccessBlobPermissions.Write | SharedAccessBlobPermissions.List
+                    SharedAccessExpiryTime = DateTime.UtcNow.AddHours(10),
+                    Permissions = SharedAccessBlobPermissions.Read |
+                      SharedAccessBlobPermissions.Write |
+                      SharedAccessBlobPermissions.List
                 };
                 var accessPolicy = new SharedAccessBlobPolicy()
                 {
@@ -632,16 +807,23 @@ namespace ARToolServer
                 // add in the new one
                 permissions.SharedAccessPolicies.Add(policyName, storedPolicy);
                 permissions.SharedAccessPolicies.Add(policyName + "access", accessPolicy);
-                // upload files
-                CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
+                // save back to the container
+                cloudBlobContainer.SetPermissions(permissions);
 
-                // Now we are ready to create a shared access signature based on the stored access policy
-                string saskey =  cloudBlobContainer.GetSharedAccessSignature(accessPolicy, policyName + "access");
-                Console.WriteLine("url: " + cloudBlockBlob.Uri.AbsoluteUri);
+                CloudBlobDirectory dir = cloudBlobContainer.GetDirectoryReference("boatphoto");
+
+                CloudBlockBlob cloudBlockBlob = dir.GetBlockBlobReference("Boatphoto.png");
+
+
+                string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName);
                 Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
+                return saskey;
+
             }
             return "";
         }
+
+
     }
 
 }

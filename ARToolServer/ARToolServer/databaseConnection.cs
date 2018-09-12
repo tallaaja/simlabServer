@@ -176,7 +176,7 @@ namespace ARToolServer
             {
                 using (NpgsqlCommand cmd = new NpgsqlCommand(
                     "SELECT " +
-                      "public.\"360video\".data, " +
+                      "public.\"360video\".data, " + //tama pitaa muuttaa sellaiseksi ett' siella on uploadaajan nimi datan sijasta
                       "public.\"360video\".sidevideo1, " +
                       "public.\"360video\".sidevideo2, " +
                     "FROM " +
@@ -277,6 +277,12 @@ namespace ARToolServer
         int fetchVideo(int video)
         {
             return 1;
+        }
+
+        public bool UploadAssetPackage(string uploader, string filename)
+        {
+            //TODO
+            return true;
         }
 
 
