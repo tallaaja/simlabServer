@@ -376,7 +376,7 @@ namespace ARToolServer
                 case PROTOCOL_CODES.POST_EDITS:
 
                     SendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "boatphoto")));
+                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "Videovihje 5. (Tuomiokirkko 2_2).mp4")));
 
                     return 1;
 

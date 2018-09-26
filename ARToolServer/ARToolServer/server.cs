@@ -91,6 +91,8 @@ public class Server
         }
     }
 
+
+
     void startServing()
     {
         serverSocket = new TcpListener(IPAddress.Parse("127.0.0.1"), 8052);
@@ -101,7 +103,10 @@ public class Server
 
         Console.WriteLine(" >> " + "Server Started");
 
-
+        db = new databaseConnection();
+        db.updateVideoEdits("1","{\"name\": \"Afzaal Ahmad Zeeshan\",\"age\": 20}");
+        db.getVideoEdits("1");
+        Console.WriteLine(db.getVideoEdits("1"));
         Thread pinging = new Thread(sendPings);
         pinging.Start();
         while (true)
@@ -137,7 +142,7 @@ public class Server
         Server server = new Server();
 
         //server.generateSASkeytoWatch("robert","boatphoto");
-        server.omapaska(server.generateSASkeytoWatch("robert", "boatphoto"));
+        //server.omapaska(server.generateSASkeytoWatch("robert", "boatphoto"));
         //server.UseAccountSAS("sv=2018-03-28&sr=c&si=SimLabIT_Policyaccess&sig=9g4jA%2F7HHI%2Fdo0JWkOddfLpvNm0%2BcxbGflMXMvNdktM%3D&sp=rl");
         Thread servingThread = new Thread(server.startServing);
         servingThread.Start();
@@ -241,9 +246,9 @@ public class Server
             // save back to the container
             cloudBlobContainer.SetPermissions(permissions);
 
-            CloudBlobDirectory dir = cloudBlobContainer.GetDirectoryReference("boatphoto"); //TÄMÄ OLI MIKÄ JÄI PUUTTUMAAN!!!
+            //CloudBlobDirectory dir = cloudBlobContainer.GetDirectoryReference("boatphoto"); //TÄMÄ OLI MIKÄ JÄI PUUTTUMAAN!!!
 
-            CloudBlockBlob cloudBlockBlob = dir.GetBlockBlobReference("Boatphoto.png");
+            CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
             
             
             string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName); 
@@ -262,7 +267,7 @@ public class Server
         var blob = cloudClient.GetBlobReferenceFromServer(url);
         MemoryStream mem = new MemoryStream(Encoding.UTF8.GetBytes("something"));
         
-        blob.UploadFromStream(mem);
+        //blob.UploadFromStream(mem);
         Console.WriteLine();
 
 

@@ -13,7 +13,12 @@ namespace ARToolServer
     {
         //NpgsqlConnection conn;
 
-        const string simlabConnection = "Server=23.100.5.134;Port=5432;User Id=postgres;Password=ilove1;Database=simlab;";
+        const string simlabConnection = "Server=platformdatabasalpha.postgres.database.azure.com;Database=platformsimlab;Username=SLplatform@platformdatabasalpha;Password=Simlab1234";
+
+
+
+        //const string simlabConnection = "Server=23.100.5.134;Port=5432;Database=simlab;User Id=postgres;Password=ilove1;";
+
 
         int userID;
         List<string>[] allocListArray(int howMany)
@@ -51,6 +56,7 @@ namespace ARToolServer
         {
             using (var conn = new NpgsqlConnection("Server=23.100.5.134;Port=5432;User Id=postgres;Password=ilove1;Database=simlab;"))
             {
+                conn.Open();
                 // Retrieve all rows
                 using (var cmd = new NpgsqlCommand("SELECT public.\"user\".id FROM public.\"user\" WHERE" +
                                                    "public.\"user\".name like \"" + name + ";", conn))
@@ -74,6 +80,7 @@ namespace ARToolServer
         {
             using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
             {
+                conn.Open();
                 // Retrieve all rows
                 using (NpgsqlCommand cmd = new NpgsqlCommand(
                     "SELECT " +
@@ -109,6 +116,7 @@ namespace ARToolServer
 
             using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
             {
+                conn.Open();
                 // Retrieve all rows
                 using (NpgsqlCommand cmd = new NpgsqlCommand(
                     "SELECT"+
@@ -141,6 +149,7 @@ namespace ARToolServer
         {
             using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
             {
+                conn.Open();
                 using (NpgsqlCommand cmd = new NpgsqlCommand(
                     "SELECT " +
                       "public.\"360video\".id, " +
@@ -167,7 +176,62 @@ namespace ARToolServer
             }
             return null;
         }
+        public void updateVideoEdits(string videoID,string edits)
+        {
+            using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
+            {
+                conn.Open();
+                using (NpgsqlCommand cmd = new NpgsqlCommand(
+                    "UPDATE " +
+                      "public.\"360video\"" +
+                      " SET " +
+                      "videoedits = " + "'"+ edits + "'" +
+                      " WHERE" +
+                      " public.\"360video\".id =" + videoID + ";", conn)) 
+                    
+                {
+                    cmd.ExecuteNonQuery();
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
 
+                            Console.WriteLine("read video data for : " + videoID);
+                            
+                        }
+                    }
+                }
+            }
+        }
+
+        public string getVideoEdits(string videoID)
+        {
+            using (NpgsqlConnection conn = new NpgsqlConnection(simlabConnection))
+            {
+                conn.Open();
+                using (NpgsqlCommand cmd = new NpgsqlCommand(
+                    "SELECT " +
+                      "public.\"360video\".videoedits" +
+                      " FROM " +
+                      "public.\"360video\"" +
+                      " WHERE" +
+                      " public.\"360video\".id =" + videoID + ";", conn))
+
+                {
+                    using (NpgsqlDataReader reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+
+                            Console.WriteLine("read video data for : " + videoID);
+                            return reader.GetString(0);
+                        }
+                        return null;
+                        
+                    }
+                }
+            }
+        }
 
         //main vid in [0], left video in [1] right video in [2]
         public byte[][] getVideoData(string videoID)
