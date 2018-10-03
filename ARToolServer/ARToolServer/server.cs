@@ -59,12 +59,27 @@ public class Server
 
     public void removeClient(string name)
     {
-        for(int i = 0; i<clients.Count; i++)
+        lock (clients)
         {
-            if(clients[i].clientName == name)
+            for (int i = 0; i < clients.Count; i++)
             {
+                if (clients[i].clientName == name)
+                {
 
-                clients.Remove(clients[i]);
+                    Console.WriteLine("Removed client: " + i);
+                    clients[i].clientSocket.Close();
+                    clients[i].pingSocket.Close();
+                    try
+                    {
+                        clients[i].ctThread.Abort();
+                    }
+                    catch(Exception e)
+                    {
+                        Console.WriteLine("error sulkialihaksessa");
+                    }
+
+                    clients.Remove(clients[i]);
+                }
             }
         }
     }
@@ -76,14 +91,37 @@ public class Server
         while (true)
         {
             Int32 unixTimestamp = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-
-            foreach (Client c in clients)
+            lock (clients)
             {
-                if (c.Sendping() == false)
+                List<Client> clientsCopy = new List<Client>(clients);
+                foreach (Client c in clientsCopy)
                 {
-                    clients.Remove(c);
-                }
+                    if (c.Sendping() == false)
+                    {
+                        for (int i = 0; i < clients.Count; i++)
+                        {
+                            if (clients[i].clientName == c.clientName)
+                            {
 
+                                Console.WriteLine("Removed client by ping: " + i);
+                                clients[i].clientSocket.Close();
+                                clients[i].pingSocket.Close();
+                                try
+                                {
+                                    clients[i].ctThread.Abort();
+                                }
+                                catch (Exception e)
+                                {
+                                    Console.WriteLine("error sulkialihaksessa");
+                                }
+
+                                clients.Remove(clients[i]);
+                                continue;
+                            }
+                        }
+                    }
+
+                }
             }
             Int32 unixTimestamp2 = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
             //Console.WriteLine(2000 - (unixTimestamp - unixTimestamp2) + " c count: " + clients.Count);
@@ -112,13 +150,15 @@ public class Server
         while (true)
         {
             clientSocket = serverSocket.AcceptTcpClient();
-            clientPingSocket = serverPingSocket.AcceptTcpClient();
-            Console.WriteLine(" >> " + "Client No:" + clients.Count + 1 + " started!");
+            clientPingSocket = serverPingSocket.AcceptTcpClient();          
 
             Client client = new Client(max_acceptedSend, this);
 
             clients.Add(client);
+            Console.WriteLine(" >> " + "Client No:" + clients.Count + " started!");
             client.StartClient(clientSocket,clientPingSocket, Convert.ToString(clients.Count)); //start servering the client
+            clientSocket = null;
+            clientPingSocket = null;
         }
     }
 

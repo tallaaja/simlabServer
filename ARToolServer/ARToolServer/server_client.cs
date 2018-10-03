@@ -21,7 +21,8 @@ namespace ARToolServer
     {
         // storage account data
         string policyName = "SimLabIT_Policy";
-        string storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=simlabitvideos;AccountKey=yWWkrOc52O+krVXnikLhy8at9cXX3LKWEBeBD4jHmImY2hYzNcCyWsaEAaEvk4XnYnkMl+mH1U6Z2kN3RJHkEw==;EndpointSuffix=core.windows.net";
+        //string storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=simlabitvideos;AccountKey=yWWkrOc52O+krVXnikLhy8at9cXX3LKWEBeBD4jHmImY2hYzNcCyWsaEAaEvk4XnYnkMl+mH1U6Z2kN3RJHkEw==;EndpointSuffix=core.windows.net";
+        string storageConnectionString = "DefaultEndpointsProtocol=https;AccountName=platformhot;AccountKey=rCaKi0AFir8YydNm8UwuqUhQonDX05K9e8mjJ7cij5Ferm9tVx55eCc7VLx6e33iFQtrmnoxDmSQTXrNgDPQSQ==;EndpointSuffix=core.windows.net";
 
         public TcpClient clientSocket;
         public TcpClient pingSocket;
@@ -30,7 +31,7 @@ namespace ARToolServer
         public int returnCode = 0; //set error code here
         public int requestCount = 0;
         private Server server;
-
+        public Thread ctThread;
         databaseConnection db;
 
         int requestMaxSize;
@@ -71,14 +72,13 @@ namespace ARToolServer
             this.clientSocket = inClientSocket;
             this.pingSocket = pingSocket;
             this.clientName = clineNo;
-            Thread ctThread = new Thread(ServeClient);
-            ctThread.Start();
             stream = clientSocket.GetStream();
             pingStream = pingSocket.GetStream();
 
             reader = new BinaryReader(stream);
-            writer = new BinaryWriter(stream);           
-
+            writer = new BinaryWriter(stream);
+            ctThread = new Thread(ServeClient);
+            ctThread.Start();
         }
 
 
@@ -215,7 +215,7 @@ namespace ARToolServer
                         if (requestResult == 0)
                         { //client wanted to quit
                             server.removeClient(clientName);
-                            Console.WriteLine(clientName + " has quit!");
+                            Console.WriteLine(clientName + " has quit! ");
                             return;
                         } //requestResult == -1 && 
                         if (status == STATUS.ERROR)
@@ -376,7 +376,7 @@ namespace ARToolServer
                 case PROTOCOL_CODES.POST_EDITS:
 
                     SendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "Videovihje 5. (Tuomiokirkko 2_2).mp4")));
+                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "carwashexitcorrect.mp4")));
 
                     return 1;
 
@@ -441,7 +441,8 @@ namespace ARToolServer
                     }
                     return 1;
                 case PROTOCOL_CODES.QUIT:
-                    SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    //SendProtocolCode(PROTOCOL_CODES.ACCEPT);
+                    bytesToCome = 0;
                     return 0;
 
                 default:

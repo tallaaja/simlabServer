@@ -26,7 +26,6 @@ E:\Git\simlabServer\ARToolServer\ARToolServer\bin\Debug\Microsoft.WindowsAzure.S
 E:\Git\simlabServer\ARToolServer\ARToolServer\bin\Debug\Newtonsoft.Json.xml
 E:\Git\simlabServer\ARToolServer\ARToolServer\bin\Debug\Npgsql.xml
 E:\Git\simlabServer\ARToolServer\ARToolServer\bin\Debug\System.Threading.Tasks.Extensions.xml
-E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csprojResolveAssemblyReference.cache
 E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.exe
 E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.pdb
 D:\GitRepos\simlabServer\ARToolServer\ARToolServer\bin\Debug\ARToolServer.exe.config
@@ -47,3 +46,6 @@ D:\GitRepos\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csproj
 D:\GitRepos\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csproj.CoreCompileInputs.cache
 D:\GitRepos\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.exe
 D:\GitRepos\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.pdb
+E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csprojAssemblyReference.cache
+E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csproj.CoreCompileInputs.cache
+E:\Git\simlabServer\ARToolServer\ARToolServer\obj\Debug\ARToolServer.csproj.CopyComplete
