@@ -7,7 +7,6 @@ using System.Text;
 using System.Threading;
 using System.Drawing;
 using System.IO;
-using System.Drawing.Imaging;
 using ARToolServer;
 using System.Runtime.Serialization.Formatters.Binary;
 using System.Collections.Concurrent;
@@ -19,7 +18,7 @@ using Microsoft.WindowsAzure.Storage.Shared.Protocol;
 public enum PROTOCOL_CODES
 {
     ERROR = -1, ERROR_NO_DBCONNECTION
-    ,ACCEPT, DENY, SENDIMAGE, SENDVIDEO, SENDJSON, SENDLOCATION, QUIT, OK
+    ,ACCEPT, DENY, SENDIMAGE, SENDVIDEO, SENDJSON, SENDLOCATION, SENDMESSAGE, QUIT, OK
         
     ,GET_MY_CONTENTPACKS, SEARCH_CONTENT_PACKS, SEARCH_CONTENTPACKS_BY_USER
     ,GET_SERIES_IN_PACKAGE,GET_VIDEOS_IN_SERIES
@@ -61,24 +60,25 @@ public class Server
     {
         lock (clients)
         {
-            for (int i = 0; i < clients.Count; i++)
+            List<Client> clientsCopy = new List<Client>(clients);
+            for (int i = 0; i < clientsCopy.Count; i++)
             {
-                if (clients[i].clientName == name)
+                if (clientsCopy[i].clientName == name)
                 {
 
-                    Console.WriteLine("Removed client: " + i);
+                    
                     clients[i].clientSocket.Close();
                     clients[i].pingSocket.Close();
+                    clients.RemoveAt(i);
+                    Console.WriteLine("Removed client: " + i);
                     try
                     {
-                        clients[i].ctThread.Abort();
+                        
                     }
                     catch(Exception e)
                     {
                         Console.WriteLine("error sulkialihaksessa");
                     }
-
-                    clients.Remove(clients[i]);
                 }
             }
         }
@@ -87,42 +87,21 @@ public class Server
     public void sendPings()
     {
 
-        Console.WriteLine("tykkäät sä pelaa pinki ponkia");
         while (true)
         {
             Int32 unixTimestamp = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
-            lock (clients)
+
+            List<Client> clientsCopy = new List<Client>(clients);
+            foreach (Client c in clientsCopy)
             {
-                List<Client> clientsCopy = new List<Client>(clients);
-                foreach (Client c in clientsCopy)
+                if (c.Sendping() == false)
                 {
-                    if (c.Sendping() == false)
-                    {
-                        for (int i = 0; i < clients.Count; i++)
-                        {
-                            if (clients[i].clientName == c.clientName)
-                            {
-
-                                Console.WriteLine("Removed client by ping: " + i);
-                                clients[i].clientSocket.Close();
-                                clients[i].pingSocket.Close();
-                                try
-                                {
-                                    clients[i].ctThread.Abort();
-                                }
-                                catch (Exception e)
-                                {
-                                    Console.WriteLine("error sulkialihaksessa");
-                                }
-
-                                clients.Remove(clients[i]);
-                                continue;
-                            }
-                        }
-                    }
-
+                    removeClient(c.clientName);
+                    
                 }
+
             }
+
             Int32 unixTimestamp2 = (Int32)(DateTime.UtcNow.Subtract(new DateTime(1970, 1, 1))).TotalSeconds;
             //Console.WriteLine(2000 - (unixTimestamp - unixTimestamp2) + " c count: " + clients.Count);
             Thread.Sleep(2000 - (unixTimestamp - unixTimestamp2));
@@ -133,8 +112,8 @@ public class Server
 
     void startServing()
     {
-        serverSocket = new TcpListener(IPAddress.Parse("127.0.0.1"), 8052);
-        serverPingSocket = new TcpListener(IPAddress.Parse("127.0.0.1"), 8051);
+        serverSocket = new TcpListener(IPAddress.Any, 8052);
+        serverPingSocket = new TcpListener(IPAddress.Any, 8051);
         clientSocket = default(TcpClient);
         serverSocket.Start();
         serverPingSocket.Start();
@@ -153,10 +132,12 @@ public class Server
             clientPingSocket = serverPingSocket.AcceptTcpClient();          
 
             Client client = new Client(max_acceptedSend, this);
-
-            clients.Add(client);
-            Console.WriteLine(" >> " + "Client No:" + clients.Count + " started!");
-            client.StartClient(clientSocket,clientPingSocket, Convert.ToString(clients.Count)); //start servering the client
+            lock (clients)
+            {
+                clients.Add(client);
+                Console.WriteLine(" >> " + "Client No:" + clients.Count + " started!");
+                client.StartClient(clientSocket, clientPingSocket, Convert.ToString(clients.Count)); //start servering the client
+            }
             clientSocket = null;
             clientPingSocket = null;
         }
@@ -180,10 +161,6 @@ public class Server
     {
         
         Server server = new Server();
-
-        //server.generateSASkeytoWatch("robert","boatphoto");
-        //server.omapaska(server.generateSASkeytoWatch("robert", "boatphoto"));
-        //server.UseAccountSAS("sv=2018-03-28&sr=c&si=SimLabIT_Policyaccess&sig=9g4jA%2F7HHI%2Fdo0JWkOddfLpvNm0%2BcxbGflMXMvNdktM%3D&sp=rl");
         Thread servingThread = new Thread(server.startServing);
         servingThread.Start();
 
@@ -191,13 +168,14 @@ public class Server
         while (true)
         {//TODO: server querying interface
 
-
+            Thread.Sleep(100);
 
         }
 
         Console.WriteLine(" >> " + "exit");
-        Console.ReadLine();
         server.stop();
+        Console.ReadLine();
+        
     }
 
     void UseAccountSAS(string sasToken)
@@ -237,7 +215,7 @@ public class Server
         Console.WriteLine(serviceProperties.HourMetrics.RetentionDays);
         Console.WriteLine(serviceProperties.HourMetrics.Version);
     }
-    public string generateSASkeytoWatch(string uploader, string filename)
+    /*public string generateSASkeytoWatch(string uploader, string filename)
     {
         CloudStorageAccount storageAccount;
         CloudBlobContainer cloudBlobContainer;
@@ -291,13 +269,16 @@ public class Server
             CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
             
             
-            string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName); 
-            Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
+            //string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName);
+
+            string saskey = cloudBlobContainer.GetSharedAccessSignature(null, policyName);
+            //Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
+            Console.WriteLine("https://simlabit.azureedge.net/?" + saskey);
             return saskey;
             
         }
         return "";
-    }
+    }*/
 
 
     public void omapaska(string token)

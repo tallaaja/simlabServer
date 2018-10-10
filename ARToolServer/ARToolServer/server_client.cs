@@ -27,6 +27,8 @@ namespace ARToolServer
         public TcpClient clientSocket;
         public TcpClient pingSocket;
         public string clientName; //ip
+        public string clientNumber;
+
         public STATUS status = STATUS.RUNNING;
         public int returnCode = 0; //set error code here
         public int requestCount = 0;
@@ -59,6 +61,7 @@ namespace ARToolServer
 
 
         NetworkStream pingStream;
+        BinaryWriter pingWriter;
 
         public MemoryStream memStream = new MemoryStream();
 
@@ -66,14 +69,16 @@ namespace ARToolServer
         string username = ""; //logged in username
 
 
-        public void StartClient(TcpClient inClientSocket, TcpClient pingSocket, string clineNo)
+        public void StartClient(TcpClient inClientSocket, TcpClient pingSocket, string clientNumber)
         {
             
             this.clientSocket = inClientSocket;
             this.pingSocket = pingSocket;
-            this.clientName = clineNo;
+            this.clientName = ((IPEndPoint)inClientSocket.Client.RemoteEndPoint).Address.ToString();
+            this.clientNumber = clientNumber;
             stream = clientSocket.GetStream();
             pingStream = pingSocket.GetStream();
+            pingWriter = new BinaryWriter(pingStream);
 
             reader = new BinaryReader(stream);
             writer = new BinaryWriter(stream);
@@ -162,26 +167,12 @@ namespace ARToolServer
 
         public bool Sendping()
         {
-
-            //Console.WriteLine(generateSASkeytoWatch("robert", "boatphoto"));
-            if (pingSocket == null)
-            {
-
-                return false;
-            }
             try
             {
-                // Get a stream object for writing. 			
-                if (pingStream.CanWrite)
-                {
-                    byte[] message = BitConverter.GetBytes((int)PROTOCOL_CODES.KEEPALIVE_SIGNAL);
-                    pingStream.Write(message, 0, 4); 
-                    Console.WriteLine("Sent protocol code:" + (PROTOCOL_CODES.KEEPALIVE_SIGNAL).ToString());
-                    return true;
-                }
-                returnCode = -1;
-                status = STATUS.ERROR;
-                return false;
+                pingWriter.Write((Int32)PROTOCOL_CODES.KEEPALIVE_SIGNAL);
+                pingStream.Flush();
+                Console.WriteLine("Sent Ping to " + clientName);
+                return true;
             }
             catch (Exception socketException)
             {
@@ -216,6 +207,11 @@ namespace ARToolServer
                         { //client wanted to quit
                             server.removeClient(clientName);
                             Console.WriteLine(clientName + " has quit! ");
+                            writer.Flush();
+                            reader.Close();
+                            writer.Close();
+                            pingSocket.Close();
+                            clientSocket.Close();
                             return;
                         } //requestResult == -1 && 
                         if (status == STATUS.ERROR)
@@ -376,60 +372,80 @@ namespace ARToolServer
                 case PROTOCOL_CODES.POST_EDITS:
 
                     SendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    SendBytes(Encoding.UTF8.GetBytes(server.generateSASkeytoWatch("robert", "carwashexitcorrect.mp4")));
+                    SendBytes(Encoding.UTF8.GetBytes(generateSASkeytoWatch("robert", "SAM_100_0131.mp4")));
 
                     return 1;
 
 
                 case PROTOCOL_CODES.REQUEST_VIEW_VIDEO:
+
+
+                    
                     SendProtocolCode(PROTOCOL_CODES.ACCEPT);
-                    
-                    string videoID = ReceiveMessage(); //user sends the ID of the video he wants to view
-                    
-                    byte[][] videoData = db.getVideoData(videoID); //we get the data that is needed to generate the SAS key that lets user view it
 
-                    string[] reply;
-                    if (videoData[0].Length == 0)
-                    {
-                        SendListString(null);
-                        return 1; //if the video is not found in the database return 0 its fiiine...
-                    }
-                    
+                    string msg = ReceiveMessage();
+                    Console.WriteLine(msg);
+                    SendBytes(Encoding.UTF8.GetBytes(generateSASkeytoWatch(msg.Split('/')[0], msg.Split('/')[1])));
 
-                    string uploader = System.Text.Encoding.UTF8.GetString(videoData[0]);
-                    string sideVideoLeft = System.Text.Encoding.UTF8.GetString(videoData[1]);
-                    string sideVideoRight = System.Text.Encoding.UTF8.GetString(videoData[2]);
+                    //todo sivu videoiden lähettäminen
 
-                    
-                    if (sideVideoLeft.Length > 0 || sideVideoRight.Length > 0)
-                    {//if either of the side videos exist the lenght of the reply array is 3 
-                        reply = new string[3];                   
-                    }
-                    else
-                    {
-                        reply = new string[1];
-                    }
+                    return 1;
+                /*SendProtocolCode(PROTOCOL_CODES.ACCEPT);
 
-                    reply[0] = generateSASkeytoWatch(uploader, videoID);
+                string videoID = ReceiveMessage(); //user sends the ID of the video he wants to view
 
-                    if (sideVideoLeft.Length > 0)
-                    {
-                        reply[1] = generateSASkeytoWatch(uploader,sideVideoLeft);
-                    }
-                    if (sideVideoRight.Length > 0)
-                    {
-                        reply[2] = generateSASkeytoWatch(uploader, sideVideoRight); 
-                    }
+                byte[][] videoData = db.getVideoData(videoID); //we get the data that is needed to generate the SAS key that lets user view it
 
-                    SendListString(reply);
-                    return 0;
-                    
+                string[] reply;
+                if (videoData[0].Length == 0)
+                {
+                    SendListString(null);
+                    return 1; //if the video is not found in the database return 0 its fiiine...
+                }
+
+
+                string uploader = System.Text.Encoding.UTF8.GetString(videoData[0]);
+                string sideVideoLeft = System.Text.Encoding.UTF8.GetString(videoData[1]);
+                string sideVideoRight = System.Text.Encoding.UTF8.GetString(videoData[2]);
+
+
+                if (sideVideoLeft.Length > 0 || sideVideoRight.Length > 0)
+                {//if either of the side videos exist the lenght of the reply array is 3 
+                    reply = new string[3];                   
+                }
+                else
+                {
+                    reply = new string[1];
+                }
+
+                reply[0] = generateSASkeytoWatch(uploader, videoID);
+
+                if (sideVideoLeft.Length > 0)
+                {
+                    reply[1] = generateSASkeytoWatch(uploader,sideVideoLeft);
+                }
+                if (sideVideoRight.Length > 0)
+                {
+                    reply[2] = generateSASkeytoWatch(uploader, sideVideoRight); 
+                }
+
+                SendListString(reply);
+                return 0;
+                */
                 case PROTOCOL_CODES.SENDJSON:
                     SendProtocolCode(PROTOCOL_CODES.ACCEPT);
                      //read how many bytes are incoming
-                    bytesToCome = reader.ReadInt32();
-                    Console.WriteLine("got reply");
-                    if (bytesToCome < requestMaxSize)
+                    //bytesToCome = reader.ReadInt32();
+                    string data = reader.ReadString();
+                    try
+                    {
+                        Console.WriteLine("got reply: " + data);
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                    }
+                    /*if (bytesToCome < requestMaxSize)
                     {
                         SendProtocolCode(PROTOCOL_CODES.ACCEPT);
                         Byte[] received = ReceiveBytes(bytesToCome);
@@ -438,7 +454,7 @@ namespace ARToolServer
                     else
                     {
                         SendProtocolCode(PROTOCOL_CODES.DENY);
-                    }
+                    }*/
                     return 1;
                 case PROTOCOL_CODES.QUIT:
                     //SendProtocolCode(PROTOCOL_CODES.ACCEPT);
@@ -477,11 +493,6 @@ namespace ARToolServer
 
         bool SendProtocolCode(PROTOCOL_CODES code)
         {
-            if (clientSocket == null)
-            {
-
-                return false;
-            }
             try
             {
                 // Get a stream object for writing. 			
@@ -491,10 +502,6 @@ namespace ARToolServer
                 Console.WriteLine("Sent protocol code:" + ((PROTOCOL_CODES)code).ToString());
                 
                 return true;
-
-                returnCode = -1;
-                status = STATUS.ERROR;
-                return false;
             }
             catch (Exception socketException)
             {
@@ -507,10 +514,6 @@ namespace ARToolServer
 
         PROTOCOL_CODES SendRequest(PROTOCOL_CODES code)
         {
-            if (clientSocket == null)
-            {
-                return PROTOCOL_CODES.ERROR;
-            }
             try
             {
                 // Get a stream object for writing. 			
@@ -534,7 +537,6 @@ namespace ARToolServer
         {
             try
             {
-
                 byte[] bytes = reader.ReadBytes(lenght);
                 Console.WriteLine("received full : " + bytes.Length + " bytes");
                 return bytes;
@@ -585,18 +587,13 @@ namespace ARToolServer
 
         public void SendMessage(string msg)
         {
-            if (SendProtocolCode(PROTOCOL_CODES.SENDJSON))
+            if (SendRequest(PROTOCOL_CODES.SENDMESSAGE) == PROTOCOL_CODES.ACCEPT)
             {
-                SendProtocolCode(PROTOCOL_CODES.ACCEPT);
                 Console.WriteLine(msg);
-                Console.WriteLine("len of message: " + Encoding.UTF8.GetBytes(msg).Length);
-                SendBytes(Encoding.UTF8.GetBytes(msg));
-
-
-
-              //  stream.Read(bytesFrom, 0, 4); //read how many bytes are incoming
-              //  int bytesToCome = BitConverter.ToInt32(bytesFrom, 0);
+                writer.Write(msg);
+                writer.Flush();
                 
+
             }
             else return;
 
@@ -606,17 +603,7 @@ namespace ARToolServer
 
         public string ReceiveMessage()
         {
-            //if (GetRequest() == PROTOCOL_CODES.SENDJSON) 
-//
-            //    SendBytes(Encoding.UTF8.GetBytes(msg));
-           // else return;
-
-
-            //read how many bytes are incoming
-            int bytesToCome = reader.ReadInt32();
-
-
-            return System.Text.Encoding.UTF8.GetString(ReceiveBytes(bytesToCome));
+            return reader.ReadString();
         }
 
         public void SendListString(string[] obj)
@@ -811,14 +798,17 @@ namespace ARToolServer
                 // save back to the container
                 cloudBlobContainer.SetPermissions(permissions);
 
-                CloudBlobDirectory dir = cloudBlobContainer.GetDirectoryReference("boatphoto");
+                //CloudBlobDirectory dir = cloudBlobContainer.GetDirectoryReference("boatphoto"); //TÄMÄ OLI MIKÄ JÄI PUUTTUMAAN!!!
 
-                CloudBlockBlob cloudBlockBlob = dir.GetBlockBlobReference("Boatphoto.png");
+                CloudBlockBlob cloudBlockBlob = cloudBlobContainer.GetBlockBlobReference(filename);
 
 
-                string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName);
-                Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
-                return saskey;
+                //string saskey = cloudBlockBlob.Uri.AbsoluteUri + cloudBlobContainer.GetSharedAccessSignature(null, policyName);
+
+                string saskey = cloudBlobContainer.GetSharedAccessSignature(null, policyName);
+                //Console.WriteLine(cloudBlockBlob.Uri.AbsoluteUri + saskey);
+                Console.WriteLine("https://simlabit.azureedge.net/" + uploader + "/" + filename + saskey);
+                return "https://simlabit.azureedge.net/"+ uploader + "/"+ filename +saskey;
 
             }
             return "";
